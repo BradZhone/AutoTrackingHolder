@@ -1,6 +1,7 @@
 package com.client.myapplication.client;
 
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import androidx.appcompat.app.AppCompatActivity;
@@ -11,23 +12,27 @@ import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.Switch;
 import android.widget.TextView;
+import android.widget.Toast;
+
 import java.io.PrintWriter;
 import java.net.Socket;
 
 @SuppressLint("SetTextI18n")
 public class MainActivity extends AppCompatActivity {
 
-    Thread Thread1 = null;
-    EditText etIP, etPort;
-    TextView tvMessages;
-    EditText etMessage;
+    Thread Thread1 = null;      //线程1用于建立连接
+    EditText etIP, etPort;      //服务器ip、端口输入框
+    static TextView tvMessages;     //消息框内容
+    static EditText etMessage;      //编辑框
     Button btnSend, btnUp, btnDown, btnLeft, btnRight, btnOp, btnTracking;
     Switch aSwitch;
-    String SERVER_IP;
-    int SERVER_PORT;
-    boolean switchOnce = false;
-    Socket socket;
-    private PrintWriter output;
+
+    String SERVER_IP;   //服务器ip
+    int SERVER_PORT;    //服务器端口
+
+    boolean switchOn = false;     //是否开启连接
+    Socket socket;      // 建立socket连接
+    public static PrintWriter output;   //输出至服务器的内容
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -60,8 +65,10 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 String message = etMessage.getText().toString().trim();
-                if (!message.isEmpty()) {
-                    new Thread(new Thread3(message)).start();
+                if (!switchOn){
+                    ToastUtil.showToast(MainActivity.this, "请先连接服务器再进行本操作");
+                }else{
+                    new Thread(new Thread2(message)).start();
                 }
             }
         });
@@ -69,49 +76,69 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 String message = "uuuuuuuuu";
-                new Thread(new Thread3(message)).start();
+                if (!switchOn){
+                    ToastUtil.showToast(MainActivity.this, "请先连接服务器再进行本操作");
+                }else{
+                    new Thread(new Thread2(message)).start();
+                }
             }
         });
         btnDown.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 String message = "ddddddddd";
-                new Thread(new Thread3(message)).start();
+                if (!switchOn){
+                    ToastUtil.showToast(MainActivity.this, "请先连接服务器再进行本操作");
+                }else{
+                    new Thread(new Thread2(message)).start();
+                }
             }
         });
         btnLeft.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 String message = "lllllllll";
-                new Thread(new Thread3(message)).start();
+                if (!switchOn){
+                    ToastUtil.showToast(MainActivity.this, "请先连接服务器再进行本操作");
+                }else{
+                    new Thread(new Thread2(message)).start();
+                }
             }
         });
         btnRight.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 String message = "rrrrrrrrr";
-                new Thread(new Thread3(message)).start();
+                if (!switchOn){
+                    ToastUtil.showToast(MainActivity.this, "请先连接服务器再进行本操作");
+                }else{
+                    new Thread(new Thread2(message)).start();
+                }
             }
         });
         btnOp.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 String message = "op";
-                new Thread(new Thread3(message)).start();
+                if (!switchOn){
+                    ToastUtil.showToast(MainActivity.this, "请先连接服务器再进行本操作");
+                }else{
+                    new Thread(new Thread2(message)).start();
+                }
             }
         });
         aSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-//            @Override
+            @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                if (isChecked && !switchOnce){
+                if (isChecked && !switchOn){
                     //选中状态 且已经打开过（因为是一直监听开关的开启情况）
                     SERVER_IP = etIP.getText().toString().trim();
                     SERVER_PORT = Integer.parseInt(etPort.getText().toString().trim());
                     Thread1 = new Thread(new Thread1());
                     Thread1.start();
-                    switchOnce = true;
+                    switchOn = true;
 
-                }else if(!isChecked && switchOnce){
+                }else if(!isChecked && switchOn){
                     //未选中状态 且选过一次 且选过的那次连接成功
                     try {
                         socket.close();
@@ -119,19 +146,39 @@ public class MainActivity extends AppCompatActivity {
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
-                    switchOnce = false;
+                    switchOn = false;
                 }
             }
         });
     }
 
     public void TrackingMode(View view){
+        //切换跟随模式
         Intent intent = new Intent(this, camera.class);
         startActivity(intent);
     }
 
+    public static class ToastUtil {
 
-    class Thread1 implements Runnable {
+        private static Toast toast;
+
+        @SuppressLint("ShowToast")
+        public static void showToast(Context context,
+                                     String content) {
+            if (toast == null) {
+                toast = Toast.makeText(context, content, Toast.LENGTH_LONG);
+            } else {
+//                toast.setText(content);
+                toast.cancel();
+                toast = Toast.makeText(context, content, Toast.LENGTH_LONG);
+            }
+            toast.show();
+        }
+
+    }
+
+
+    public class Thread1 implements Runnable {
         @Override
         public void run() {
             try {
@@ -148,10 +195,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-    class Thread3 implements Runnable {
+    public static class Thread2 implements Runnable {
+        //线程2用于发送数据至服务器
         private String message;
 
-        Thread3(String message) {
+        Thread2(String message) {
             this.message = message;
         }
 
@@ -159,13 +207,8 @@ public class MainActivity extends AppCompatActivity {
         public void run() {
             output.write(message);
             output.flush();
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    tvMessages.append("client: " + message + "\n");
-                    etMessage.setText("");
-                }
-            });
+            tvMessages.append("client: " + message + "\n");
+            etMessage.setText("");
         }
     }
 }
