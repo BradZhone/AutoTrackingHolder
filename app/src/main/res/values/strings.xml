@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">自动跟踪云台 Auto Tracking Holder</string>
+    <string name="port_no"> 端口号</string>
+    <string name="ip_address"> IP地址</string>
+    <string name="enter_message"> 输入信息</string>
+    <string name="send">发送</string>
+    <string name="connect_to_server">连接服务器</string>
+    <string name="up">上</string>
+    <string name="op">复原</string>
+    <string name="down">下</string>
+    <string name="left">左</string>
+    <string name="right">右</string>
+    <string name="camera">跟踪模式</string>
+    <string name="between_Ip_Port">:</string>
+    <string name="warning">功能开发中...</string>
+    <string name="switch_connect">连接服务器</string>
+</resources>
