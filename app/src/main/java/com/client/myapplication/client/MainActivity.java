@@ -81,7 +81,7 @@ public class MainActivity extends AppCompatActivity{
         btnUp.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                String message = "uuuuuuuuu";
+                String message = "000.090ypn";
                 if (!switchOn){
                     ToastUtil.showToast(MainActivity.this, "请先连接云台再进行本操作");
                 }else{
@@ -92,7 +92,7 @@ public class MainActivity extends AppCompatActivity{
         btnDown.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                String message = "ddddddddd";
+                String message = "000.090ypp";
                 if (!switchOn){
                     ToastUtil.showToast(MainActivity.this, "请先连接云台再进行本操作");
                 }else{
@@ -103,7 +103,7 @@ public class MainActivity extends AppCompatActivity{
         btnLeft.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                String message = "lllllllll";
+                String message = "090.000xnp";
                 if (!switchOn){
                     ToastUtil.showToast(MainActivity.this, "请先连接云台再进行本操作");
                 }else{
@@ -114,7 +114,7 @@ public class MainActivity extends AppCompatActivity{
         btnRight.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                String message = "rrrrrrrrr";
+                String message = "090.000xpp";
                 if (!switchOn){
                     ToastUtil.showToast(MainActivity.this, "请先连接云台再进行本操作");
                 }else{
@@ -125,7 +125,7 @@ public class MainActivity extends AppCompatActivity{
         btnOp.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                String message = "op";
+                String message = "000.000opp";
                 if (!switchOn){
                     ToastUtil.showToast(MainActivity.this, "请先连接云台再进行本操作");
                 }else{
@@ -171,6 +171,8 @@ public class MainActivity extends AppCompatActivity{
                 ActivityCompat.requestPermissions(this,
                         new String[]{Manifest.permission.CAMERA}, 1);
             } else {
+                String message = "000.000opp";
+                new Thread(new Thread2(message)).start();
                 startActivity(new Intent(this, camera.class));
             }
         }
@@ -225,7 +227,7 @@ public class MainActivity extends AppCompatActivity{
     }
 
     public static class Thread2 implements Runnable {
-        //线程2用于发送数据至服务器
+        //线程2用于调试模式下按键或输入文本发送数据至服务器
         private String message;
         Thread2(String message) {
             this.message = message;
@@ -243,6 +245,20 @@ public class MainActivity extends AppCompatActivity{
             }
             //清空发送数据框
             etMessage.setText("");
+        }
+    }
+
+    public static class Thread3 implements Runnable {
+        //线程3用于跟踪模式下自动发送数据至服务器（除去Thread2中设置文本框的内容，防止因页面布局不匹配而出现闪退现象，增强应用稳定性）
+        private String message;
+        Thread3(String message) {
+            this.message = message;
+        }
+        @Override
+        public void run() {
+            //发送数据至服务器
+            output.write(message);
+            output.flush();
         }
     }
 }

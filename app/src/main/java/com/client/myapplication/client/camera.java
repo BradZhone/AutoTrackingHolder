@@ -7,7 +7,6 @@ import android.content.Context;
 import android.content.pm.ActivityInfo;
 import android.util.DisplayMetrics;
 import android.util.Log;
-import android.view.OrientationEventListener;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
@@ -24,6 +23,7 @@ import org.opencv.objdetect.CascadeClassifier;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.text.DecimalFormat;
 import java.util.Arrays;
 
 public class camera extends AppCompatActivity implements
@@ -34,16 +34,15 @@ public class camera extends AppCompatActivity implements
     private Mat mRgba;
     private int mAbsoluteFaceSize = 0;
     private boolean isFrontCamera;
-    private OrientationEventListener mOreientationListener;
-    public float[] center = new float[2];
-    public float[] width_range = new float[2];
-    public float[] height_range = new float[2];
+    public float[] center = new float[2];//识别人脸的中心坐标
+    public float[] width_range = new float[2];//中心框的宽度范围
+    public float[] height_range = new float[2];//中心框的高度范围
+    public float width_center, height_center;//屏幕的中心点坐标
+    public float face_size;//前后两张人脸的大小，用于判断是否为误判
 
-    private int x=0;//统计已经发送出的命令数，防止转到90度还一直发
-    private int y=0;
-    private int time = 0; //计算检测到人脸超出框的时间，防止发出过多命令
+    private int time = 0; //计算检测到人脸超出框的时间，防止发出过多命令（每一个time35.8ms，每转1°6.9ms）
 
-    // 手动装载openCV库文件，以保证手机无需安装OpenCV Manager
+    // 自动装载openCV库文件，以保证手机无需安装OpenCV Manager
     static {
         System.loadLibrary("opencv_java3");
     }
@@ -56,6 +55,10 @@ public class camera extends AppCompatActivity implements
         cameraView = findViewById(R.id.camera_view);
         cameraView.setCvCameraViewListener(this); // 设置相机监听
         initClassifier();
+
+        cameraView.setCameraIndex(CameraBridgeViewBase.CAMERA_ID_FRONT);
+        isFrontCamera = true;
+
         cameraView.enableView();
         Button switchCamera = findViewById(R.id.switch_camera);
         switchCamera.setOnClickListener(this); // 切换相机镜头，默认后置
@@ -68,6 +71,9 @@ public class camera extends AppCompatActivity implements
         Log.v("screen_height", String.valueOf(height));
         width_range = new float[]{(float) (width * 2 * 0.85 / 5.0), (float) (width * 3 * 0.81 / 5.0)};
         height_range = new float[]{(float) (height * 2 * 0.836 / 5.0), (float) (height * 3/ 5.0)};
+        width_center = (width_range[0]+width_range[1])/2;
+        height_center = (height_range[0]+height_range[1])/2;
+        Log.v("screen_center", "("+width_center+","+height_center+")");
     }
 
     @Override
@@ -91,8 +97,8 @@ public class camera extends AppCompatActivity implements
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
                 WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-//        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+//        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
 //        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR);
     }
 
@@ -115,6 +121,11 @@ public class camera extends AppCompatActivity implements
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private float distance(float p1x, float p1y, Point p2){
+        double sqrt = Math.sqrt(Math.pow(p1x - p2.x, 2) + Math.pow(p1y - p2.y, 2));
+        return (float) sqrt;
     }
 
     @Override
@@ -153,82 +164,100 @@ public class camera extends AppCompatActivity implements
         Rect[] facesArray = faces.toArray();
 
         Scalar rangeRectColor = new Scalar(255, 255, 0, 255);
+        Scalar centerColor = new Scalar(255, 0, 0, 255);
         Scalar faceRectColor = new Scalar(0, 255, 0, 255);
         try{    //尝试寻找人脸并标出第一个人脸
             //画出边框
             Point range_st = new Point(width_range[0], height_range[0]);
             Point range_en = new Point(width_range[1], height_range[1]);
+            Point screen_center = new Point(width_center, height_center);
+            Imgproc.circle(mRgba, screen_center, 5, centerColor, 10);
             Imgproc.rectangle(mRgba, range_st, range_en,rangeRectColor,3);
             Log.v("screen_width_range", Arrays.toString(width_range));
             Log.v("screen_height_range", Arrays.toString(height_range));
 
-            Imgproc.rectangle(mRgba,facesArray[0].tl(), facesArray[0].br(),faceRectColor,3);
+            //人脸中心
+            Point face_center = new Point(facesArray[0].x+facesArray[0].width/2.0,facesArray[0].y + facesArray[0].height/2.0);
+            float detect_size = facesArray[0].height*facesArray[0].width;
+
+//            Imgproc.rectangle(mRgba,facesArray[0].tl(), facesArray[0].br(),faceRectColor,3);//标出误判人脸
+
             Log.v("Faces", String.valueOf(facesArray[0]));
             //标出人脸位置
-            if(Math.abs(center[0] - (facesArray[0].x+facesArray[0].width/2.0))<=60 && Math.abs(center[1] - (facesArray[0].y + facesArray[0].height/2.0))<=60){
-                //如果依次检测到的两个矩阵左上角坐标之差小于50，则更新人脸中心坐标
-                center[0] = (float) (facesArray[0].x + (facesArray[0].width/2.0));
-                center[1] = (float) (facesArray[0].y + (facesArray[0].height/2.0));
+//            if(Math.abs(distance(center[0], center[1],screen_center)-distance((float)face_center.x,(float)face_center.y,screen_center))<=100 && Math.abs(face_size-detect_size)<=detect_size*0.35||center[0]==0 && face_size==0){
+                //如果依次检测到的两个人脸中心左坐标到屏幕中心距离之差小于100且人脸大小之差不超过35%，则更新人脸位置并画出人脸（已弃用）
+            if(Math.abs(face_size-detect_size)<=detect_size*0.4||face_size==0){//当前后两张人脸大小之差不超过40%时认为是同一张人脸，更新人脸坐标
+                center[0] = (float) face_center.x;
+                center[1] = (float) face_center.y;
+                face_size = detect_size;
                 Log.v("face_center", Arrays.toString(center));
-            }else{
-                center[0] = (float) (facesArray[0].x + (facesArray[0].width/2.0));
-                center[1] = (float) (facesArray[0].y + (facesArray[0].height/2.0));
-            }
 
-            //  超出边框时控制云台转动
+                //标出人脸
+                Imgproc.rectangle(mRgba,facesArray[0].tl(), facesArray[0].br(),faceRectColor,3);
+                Imgproc.circle(mRgba, face_center, 5, centerColor, 10);
+                Imgproc.line(mRgba,face_center,screen_center,centerColor,3);
+                Imgproc.putText(mRgba,distance((float) screen_center.x, (float) screen_center.y,face_center)+":"+face_size,face_center,1,3,centerColor,3);
+            }
             if(time==0) {
+                //  超出边框时控制云台转动
+
+                float dx = (float) (center[0]-screen_center.x);
+                float dy = (float) (center[1]-screen_center.y);
+                float k = (float) 0.0396;
+                float b = (float) -1.185;
+                int theta_x = Math.abs((int) (k*dx+b));
+                int theta_y = Math.abs((int) (k*dy+b));
+
                 if (center[0] < width_range[0]) {//超出左边框
-                    if (!isFrontCamera && x < 9) {
-                        Log.v("command_left", "r");
-                        String message = "r";
-                        new Thread(new MainActivity.Thread2(message)).start();
-                        x += 1;
-                    } else if (isFrontCamera && x > -9) {
-                        Log.v("command_right", "l");
-                        String message = "l";
-                        new Thread(new MainActivity.Thread2(message)).start();
-                        x -= 1;
+                    if (!isFrontCamera) {
+                        String message = new DecimalFormat("000").format(theta_x)+".000xpp";
+                        Log.v("test_x", message);
+                        new Thread(new MainActivity.Thread3(message)).start();
+                    } else {
+                        String message = new DecimalFormat("000").format(theta_x)+".000xnp";
+                        Log.v("test_x", message);
+                        new Thread(new MainActivity.Thread3(message)).start();
                     }
                 } else if (center[0] > width_range[1]) {//超出右边框
-                    if (!isFrontCamera && x > -9) {
-                        Log.v("command_right", "l");
-                        String message = "l";
-                        new Thread(new MainActivity.Thread2(message)).start();
-                        x -= 1;
-                    } else if (isFrontCamera && x < 9) {
-                        Log.v("command_left", "r");
-                        String message = "r";
-                        new Thread(new MainActivity.Thread2(message)).start();
-                        x += 1;
+                    if (!isFrontCamera) {
+                        String message = new DecimalFormat("000").format(theta_x)+".000xnp";
+                        Log.v("test_x", message);
+                        new Thread(new MainActivity.Thread3(message)).start();
+                    } else{
+                        String message = new DecimalFormat("000").format(theta_x)+".000xpp";
+                        Log.v("test_x", message);
+                        new Thread(new MainActivity.Thread3(message)).start();
                     }
-                } else if (center[1] < height_range[0]) {//超出上边框
-                    if (!isFrontCamera && y > -9) {
-                        Log.v("command_up", "d");
-                        String message = "d";
-                        new Thread(new MainActivity.Thread2(message)).start();
-                        y -= 1;
-                    } else if (isFrontCamera && y < 9) {
-                        Log.v("command_down", "u");
-                        String message = "u";
-                        new Thread(new MainActivity.Thread2(message)).start();
-                        y += 1;
+                }
+
+                if (center[1] < height_range[0]) {//超出上边框
+                    if (!isFrontCamera) {
+                        String message0 = new DecimalFormat("000").format(theta_y);
+                        String message = "000."+message0+"ypp";
+                        Log.v("test_y", message);
+                        new Thread(new MainActivity.Thread3(message)).start();
+                    } else {
+                        String message0 = new DecimalFormat("000").format(theta_y);
+                        String message = "000."+message0+"ypn";
+                        Log.v("test_y", message);
+                        new Thread(new MainActivity.Thread3(message)).start();
                     }
                 } else if (center[1] > height_range[1]) {//超出下边框
-                    if (!isFrontCamera && y < 9) {
-                        Log.v("command_down", "u");
-                        String message = "u";
-                        new Thread(new MainActivity.Thread2(message)).start();
-                        y += 1;
-                    } else if (isFrontCamera && y > -9) {
-                        Log.v("command_up", "d");
-                        String message = "d";
-                        new Thread(new MainActivity.Thread2(message)).start();
-                        y -= 1;
+                    if (!isFrontCamera) {
+                        String message0 = new DecimalFormat("000").format(theta_y);
+                        String message = "000."+message0+"ypn";
+                        Log.v("test_y", message);
+                        new Thread(new MainActivity.Thread3(message)).start();
+                    } else {
+                        String message0 = new DecimalFormat("000").format(theta_y);
+                        String message = "000."+message0+"ypp";
+                        Log.v("test_y", message);
+                        new Thread(new MainActivity.Thread3(message)).start();
                     }
                 }
             }
 
-            time = (time+1)%7;
+            time = (time+1)%15;//每计数15次调整一次位置，防止发送过多操控命令
 
         } catch (Exception e) {
             e.printStackTrace();
