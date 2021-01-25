@@ -1,6 +1,6 @@
 /*************************************************************
-  目标跟踪云台(as server)
-  by Brad Z
+  目标跟踪云台 Auto Tracking Holder
+  by BradZhone
   ESP8266 with 0.96inch OLED 引脚
       VCC    <--->    VCC
       GND    <--->    GND
